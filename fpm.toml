@@ -1,0 +1,16 @@
+name = "code12"
+version = "0.1.0"
+license = "license"
+author = "Zdenek Grof"
+maintainer = "zdenek.grof@vscht.cz"
+copyright = "Copyright 2022, Zdenek Grof"
+[build]
+auto-executables = true
+auto-tests = true
+auto-examples = true
+[install]
+library = false
+
+
+[dependencies]
+set09 = { git = "git@github.com:grofz/set09.git" }

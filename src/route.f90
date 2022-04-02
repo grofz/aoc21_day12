@@ -2,10 +2,13 @@
     use node
     implicit none
 
-    integer, parameter :: ROUTE_DONE=1, ROUTE_FAIL=-1, ROUTE_INCOMPLETE=0
+    integer, parameter :: ROUTE_DONE=1, ROUTE_FAIL=-1, ROUTE_INCOMPLETE=0, &
+                          ROUTE_SMALL=2
 
     type route_t
       type(node_t), allocatable :: r(:)
+      integer :: n = 0
+      logical :: visited_small = .false.
     contains
       procedure :: test => route_test
       procedure :: print => route_print
@@ -34,6 +37,8 @@
     function route_init() result(new)
       type(route_t) :: new
       allocate(new % r(0))
+      new % n = 0
+      new % visited_small = .false.
     end function
 
     function list_init() result(new)
@@ -49,9 +54,11 @@
       integer :: i
 
       allocate(a % r(size(b%r)))
-      do i = 1, size(b%r)
+      do i = 1, b % n
         a % r(i) = b % r(i)
       enddo
+      a % n = b % n
+      a % visited_small = b % visited_small
     end subroutine route_copy
 
 
@@ -74,12 +81,12 @@
       class(route_t), intent(in) :: this
       integer :: i
 
-      !do i = 1, size(this%r)
+      !do i = 1, this % n
       !  call this % r(i) % printngb()
       !enddo
 
       write(*,'(a)', advance ='no') 'route = { '
-      do i = 1, size(this%r)
+      do i = 1, this % n
         write(*,'(a)', advance='no') this % r(i) % id//' '
       enddo
       write(*,'(a)') '}'
@@ -87,25 +94,30 @@
 
 
 
-    function putlast(old, added) result(new)
-      type(route_t), intent(in) :: old
-      type(route_t) :: new
+    subroutine putlast(route, added)
+      type(route_t), intent(inout) :: route
       type(node_t), intent(in) :: added
 
-      integer :: n, i
-      if (allocated(old % r)) then
-        n = size(old % r)
+      type(node_t), allocatable :: tmp(:)
+      integer :: nmax, i
+      if (allocated(route % r)) then
+        nmax = size(route % r)
       else
-        n = 0
+        nmax = 0
       endif
-!print *, 'n= ', n
-      allocate(new % r(n+1))
 
-      do i=1, n
-        new % r(i) = old % r(i)
-      enddo
-      new % r(n+1) = added
-    end function
+      if (route % n == nmax) then
+         nmax = max(1, 2*nmax)
+         allocate(tmp(nmax))
+        do i=1, route % n
+          tmp(i) = route % r(i)
+        enddo
+        call move_alloc(tmp, route % r)
+      endif
+
+      route % n = route % n + 1 
+      route % r(route % n) = added
+    end subroutine putlast
 
 
 
@@ -147,7 +159,7 @@
       ! empty route is not complete
       res = ROUTE_INCOMPLETE
       n = 0
-      if (allocated(this % r)) n = size(this % r)
+      if (allocated(this % r)) n = this % n
       if (n == 0) return
 
       ! valid route must begin at the start, start cannot appear later
@@ -171,7 +183,13 @@
       pattern = this % r(n) % id
       do i = n-1, 2, -1
         if (this % r(i) % id == pattern) then
-          res = ROUTE_FAIL
+
+          ! we can visit once small value
+          if (.not. this % visited_small) then
+            res = ROUTE_SMALL
+          else
+            res = ROUTE_FAIL
+          endif
           exit
         endif
       enddo

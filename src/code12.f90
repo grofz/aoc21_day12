@@ -143,7 +143,8 @@ contains
     deallocate(ptr % p)
     ptr = transfer(all_nodes % read(h), ptr)
     start = ptr % p
-    route = putlast(route, start)
+    route = route_t()
+    call putlast(route, start)
     list = list_t()
     call list_putlast(list, route)
   end function init_list
@@ -166,8 +167,8 @@ contains
     !
     updated_list = list_t()
     do i = 1, list % n
-  write(*,'(a)', advance='no') '.'
-      n = size(list % m(i) % r)
+if(mod(i,100)==0) write(*,'(a)', advance='no') '.'
+      n = list % m(i) % n
       last_node = list % m(i) % r(n)
       call last_node % resetcurrent(h)
       do
@@ -178,9 +179,9 @@ contains
         ! Add the neighbor to the end of the route and test it 
         !
         new_route = list % m(i)
-        new_route = putlast(new_route, ngb_node)
+        call putlast(new_route, ngb_node)
         itest = new_route % test()
-! write(*,'(a,i2,a)',advance='no') 'ires ',itest,' for new route '
+! write(*,'(a,i2,l1,a)',advance='no') 'ires ',itest,new_route%visited_small,' for new route '
 ! call new_route % print()
 
         ! Invalid route is discarded
@@ -193,6 +194,9 @@ contains
           call list_putlast(updated_list, new_route)
         case(ROUTE_DONE)
           call list_putlast(finished, new_route)
+        case(ROUTE_SMALL)
+          new_route % visited_small = .true.
+          call list_putlast(updated_list, new_route)
         case default
           error stop 'wrong value of test'
         end select
@@ -201,14 +205,14 @@ contains
     write(*,*)
 
     print *, 'Finished routes ', finished%n
-  ! do i=1, finished % n
-  !   call finished % m(i) % print()
-  ! enddo
-  ! write(*,*)
+!   do i=1, finished % n
+!     call finished % m(i) % print()
+!   enddo
+!   write(*,*)
     print *, 'Unfinished  routes ', updated_list%n
-  ! do i=1,updated_list % n
-  !   call updated_list % m(i) % print()
-  ! enddo
+!   do i=1,updated_list % n
+!     call updated_list % m(i) % print()
+!   enddo
     write(*,*)
 
     list = updated_list

@@ -239,12 +239,12 @@ contains
     enddo
     write(*,*)
 
-    print *, 'Finished routes ', finished % size()
+    print '(a,i0)', 'Finished routes ', finished % size()
 !   do i=1, finished % n
 !     call finished % m(i) % print()
 !   enddo
 !   write(*,*)
-    print *, 'Unfinished  routes ', updated_list % size()
+    print '(a,i0)', 'Unfinished routes ', updated_list % size()
 !   do i=1,updated_list % n
 !     call updated_list % m(i) % print()
 !   enddo

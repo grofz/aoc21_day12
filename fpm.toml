@@ -13,4 +13,4 @@ library = false
 
 
 [dependencies]
-set09 = { git = "git@github.com:grofz/set09.git" }
+rbtr08 = { git = "git@github.com:grofz/rbtr08.git" }

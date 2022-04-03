@@ -258,17 +258,14 @@
       if (.not. this % r(n) % is_small()) return
       pattern = this % r(n) % getid()
       do i = n-1, 2, -1
-        if (this % r(i) % getid() == pattern) then
+        if (this % r(i) % getid() /= pattern) cycle
+        res = ROUTE_FAIL
 
-          ! we can visit once small value
-          if (.not. this % revisited_small_cave) then
+        ! one small cave can be revisited once
+        if (revisit_allowed0 .and. .not. this % revisited_small_cave) &
             res = ROUTE_SMALL_REVISITED
-            if (.not. revisit_allowed0) res = ROUTE_FAIL
-          else
-            res = ROUTE_FAIL
-          endif
-          exit
-        endif
+
+        exit
       enddo
     end function route_test
 

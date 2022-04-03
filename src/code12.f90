@@ -1,6 +1,7 @@
 module code12
-  use node !, only : node_t, DAT_KIND, rbtr_t, node_ptr
+  use node, only : node_t, node_ptr, cfun, NODE_BEG, NODE_END, nodes_print
   use route
+  use tree_m, only : rbtr_t, DAT_KIND
   implicit none
   private
   integer(DAT_KIND), allocatable :: mold(:)
@@ -9,39 +10,69 @@ module code12
 contains
   subroutine say_hello
     type(rbtr_t) :: all_nodes
-    type(node_ptr) :: new_node, ptr2
-    procedure(compare_fun) :: cfun
     type(list_t) :: list, finished
- type(node_ptr) :: ptr
- type(node_t) :: a, b, c
- integer :: ierr
- integer(DAT_KIND), allocatable :: h(:)
- type(route_t) :: route
+    logical :: revisit_small_allowed
+    character(len=:), allocatable :: input_dataset
+    integer :: i
+    real :: time0, time1
 
+    do
+      write(*,'(a)', advance='no') &
+        'AoC Day 12, Which part (1-2) ? '
+      read(*,*) i
+      select case(i)
+      case(1)
+        revisit_small_allowed = .false.
+      case(2)
+        revisit_small_allowed = .true.
+      case default
+        cycle
+      end select
+      exit
+    enddo
+
+    do
+      write(*,'(a)', advance='no') &
+        'Which dataset (1-4) ? '
+      read(*,*) i
+      select case(i)
+      case(1)
+        input_dataset = 'test.txt'
+      case(2)
+        input_dataset = 'test2.txt'
+      case(3)
+        input_dataset = 'test3.txt'
+      case(4)
+        input_dataset = 'input.txt'
+      case default
+        cycle
+      end select
+      exit
+    enddo
+    call cpu_time(time0)
 
     all_nodes = rbtr_t(cfun)
-
-    call read_input(all_nodes,'input.txt')
-    !call read_input(all_nodes,'test.txt')
-    !call read_input(all_nodes,'test2.txt')
-    !call read_input(all_nodes,'test3.txt')
+    call read_input(all_nodes, input_dataset)
 
     call nodes_print(all_nodes)
     print *
     call print_cave(all_nodes)
+    print *
+    print *
 
- print *, 'EEEEEE'
-
-    ! init list
+    ! initial list contains one route with the start node
     list = list_t()
     list = init_list(all_nodes)
 
-    ! search for paths
+    ! search for paths, finished routes are collected in a separate list
     finished = list_t()
     do 
-      if (list % n == 0) exit
-      call update_routes(list, finished)
+      if (list % size() == 0) exit
+      call update_routes(list, finished, revisit_small_allowed)
     enddo
+    call cpu_time(time1)
+    print '(a,i0,a,en12.3,a)', 'Answer is ',finished%size(), &
+    &  '. Time taken ',(time1-time0),' s.'
 
   end subroutine say_hello
 
@@ -93,7 +124,7 @@ contains
       if (i /=0 .or. j /= 0) &
           error stop 'nodes not found, this is defenive '
 
-      ! reuse temporary space
+      ! reuse temporary pointers
       deallocate(ptr1 % p, ptr2 % p)
       ptr1 = transfer(all_nodes % read(h1), ptr1)
       ptr2 = transfer(all_nodes % read(h2), ptr2)
@@ -110,15 +141,16 @@ contains
   end subroutine read_input
 
 
+
   subroutine print_cave(all_nodes)
     type(rbtr_t), intent(in) :: all_nodes
-    integer(DAT_KIND), allocatable :: handle(:)
+    integer(DAT_KIND), allocatable :: h(:)
     integer :: ierr
     type(node_ptr) :: ptr
 
-    call all_nodes % resetcurrent(handle)
+    call all_nodes % resetcurrent(h)
     do
-      ptr = transfer(all_nodes % nextread(handle, ierr), ptr)
+      ptr = transfer(all_nodes % nextread(h, ierr), ptr)
       if (ierr /= 0) exit
       call ptr % p % printngb()
     enddo
@@ -151,11 +183,13 @@ contains
 
 
 
-  subroutine update_routes(list, finished)
+  subroutine update_routes(list, finished, revisit_small_allowed)
     type(list_t), intent(inout) :: list, finished
+    logical, intent(in) :: revisit_small_allowed
+                             ! allow a single revisit for one small node?
 
     type(list_t) :: updated_list
-    type(route_t) :: new_route
+    type(route_t) :: new_route, current_route
     integer :: i, n, ierr, itest
     type(node_t) :: last_node
     type(node_t) :: ngb_node
@@ -166,10 +200,11 @@ contains
     ! neighbours.
     !
     updated_list = list_t()
-    do i = 1, list % n
-if(mod(i,100)==0) write(*,'(a)', advance='no') '.'
-      n = list % m(i) % n
-      last_node = list % m(i) % r(n)
+    do i = 1, list % size()
+      if(mod(i,100)==0) write(*,'(a)', advance='no') '.'
+      current_route = list % getroute(i)
+      n = current_route % size()
+      last_node = current_route % getnode(n)
       call last_node % resetcurrent(h)
       do
         ngb_node = last_node % nextngb(h, ierr)
@@ -178,9 +213,9 @@ if(mod(i,100)==0) write(*,'(a)', advance='no') '.'
         !
         ! Add the neighbor to the end of the route and test it 
         !
-        new_route = list % m(i)
+        new_route = current_route 
         call putlast(new_route, ngb_node)
-        itest = new_route % test()
+        itest = new_route % test(revisit_small_allowed)
 ! write(*,'(a,i2,l1,a)',advance='no') 'ires ',itest,new_route%visited_small,' for new route '
 ! call new_route % print()
 
@@ -189,13 +224,13 @@ if(mod(i,100)==0) write(*,'(a)', advance='no') '.'
         ! Completed route is added as finished
         select case(itest)
         case(ROUTE_FAIL)
-          continue
+          continue ! new_route will be dropped
         case(ROUTE_INCOMPLETE)
           call list_putlast(updated_list, new_route)
         case(ROUTE_DONE)
           call list_putlast(finished, new_route)
-        case(ROUTE_SMALL)
-          new_route % visited_small = .true.
+        case(ROUTE_SMALL_REVISITED)
+          call new_route % setvisited(.true.)
           call list_putlast(updated_list, new_route)
         case default
           error stop 'wrong value of test'
@@ -204,20 +239,20 @@ if(mod(i,100)==0) write(*,'(a)', advance='no') '.'
     enddo
     write(*,*)
 
-    print *, 'Finished routes ', finished%n
+    print *, 'Finished routes ', finished % size()
 !   do i=1, finished % n
 !     call finished % m(i) % print()
 !   enddo
 !   write(*,*)
-    print *, 'Unfinished  routes ', updated_list%n
+    print *, 'Unfinished  routes ', updated_list % size()
 !   do i=1,updated_list % n
 !     call updated_list % m(i) % print()
 !   enddo
     write(*,*)
 
-    list = updated_list
+    !list = updated_list
+    call list_move(list, updated_list)
 
-  end subroutine
-
+  end subroutine update_routes
 
 end module code12

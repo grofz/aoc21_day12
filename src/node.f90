@@ -1,13 +1,15 @@
   module node
     use tree_m
     implicit none
-    public nodes_print
+    private
+    public nodes_print, cfun
 
-    type node_t
-  !   private
+    type, public :: node_t
+      private
       character(len=2) :: id
       type(rbtr_t)     :: ngb
     contains
+      procedure :: getid => node_getid
       procedure :: addngb => node_addngb
       procedure :: printngb => node_printngb
       procedure :: is_end, is_beg, is_small
@@ -21,14 +23,12 @@
       module procedure node_init
     end interface
 
-
-    type node_ptr
+    type, public :: node_ptr
       type(node_t), pointer :: p
     end type
 
     integer(DAT_KIND), allocatable :: mold(:)
-    private mold
-    character(len=2), parameter :: NODE_BEG='[[', NODE_END=']]'
+    character(len=2), parameter, public :: NODE_BEG='[[', NODE_END=']]'
 
   contains
 
@@ -36,7 +36,6 @@
       type(node_t), pointer :: new
       character(len=2), intent(in) :: id
 
-      procedure(compare_fun) :: cfun
       allocate(new)
       new % id = id
       new % ngb = rbtr_t(cfun)
@@ -58,14 +57,10 @@
       is_end = this % id == NODE_END
     end function
 
-
-
     logical function is_beg(this)
       class(node_t), intent(in) :: this
       is_beg = this % id == NODE_BEG
     end function
-
-
 
     logical function is_small(this)
       class(node_t), intent(in) :: this
@@ -147,25 +142,33 @@ print *, 'ngb ', ngb%p%id, 'exists in list of ',this%id
       endif
     end function node_nextngb
 
+
+
+    function node_getid(this)
+      character(len=2) node_getid
+      class(node_t), intent(in) :: this
+      node_getid = this % id
+    end function
+
+
+
+    pure function cfun(a, b) result (ires)
+    ! use tree_m, only : DAT_KIND
+    ! use node, only : node_t, node_ptr
+      integer(DAT_KIND), intent(in) :: a(:), b(:)
+      integer :: ires
+      type(node_ptr) :: ptra, ptrb
+
+      ptra = transfer(a, ptra)
+      ptrb = transfer(b, ptrb)
+
+      if (ptra % p % id < ptrb % p % id) then
+        ires = -1
+      elseif (ptra % p % id > ptrb % p % id) then
+        ires = 1
+      else
+        ires = 0
+      endif
+    end function cfun
+
   end module node
-
-
-
-  pure function cfun(a, b) result (ires)
-    use tree_m, only : DAT_KIND
-    use node, only : node_t, node_ptr
-    integer(DAT_KIND), intent(in) :: a(:), b(:)
-    integer :: ires
-    type(node_ptr) :: ptra, ptrb
-
-    ptra = transfer(a, ptra)
-    ptrb = transfer(b, ptrb)
-
-    if (ptra % p % id < ptrb % p % id) then
-      ires = -1
-    elseif (ptra % p % id > ptrb % p % id) then
-      ires = 1
-    else
-      ires = 0
-    endif
-  end function cfun
